@@ -6,8 +6,25 @@
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 
 import MySQLdb
+import scrapy
 from scrapy.exceptions import DropItem
+from scrapy.pipelines.images import ImagesPipeline
+
 from MyNews.items import MyNewsItem
+
+
+class ImagesPipeline(ImagesPipeline):
+    '''
+    MyNews project's download image pipeline
+    '''
+    def get_media_requests(self, item, info):
+        if item['cover'] is not None and item['cover'] != "":
+            yield scrapy.Request(item['cover'])
+
+    def item_completed(self, result, item, info):
+        imagesPaths = [x['path'] for ok, x in result if ok]
+        if imagesPaths is not None and len(imagesPaths) != 0:
+            item["cover"] = imagesPaths[0]
 
 
 class MyNewsPipeline(object):

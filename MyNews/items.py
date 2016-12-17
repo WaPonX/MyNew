@@ -22,10 +22,13 @@ class MyNewsItem(scrapy.Item):
 
     @staticmethod
     def TestItem(item):
-        if ( "" == item["title"] or "" == item["tag"] or "" == item["context"]):
+        if item is None:
             return False
-        try :
-            d = datetime.strptime(item["time"], "%Y-%m-%d");
+
+        if ("" == item["title"] or "" == item["tag"] or "" == item["context"]):
+            return False
+        try:
+            d = datetime.strptime(item["time"], "%Y-%m-%d")
         except:
             return False
 

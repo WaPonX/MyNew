@@ -121,7 +121,25 @@ COOKIES_ENABLED=False
 DOWNLOAD_DELAY=3
 
 ITEM_PIPELINES = {
-    'MyNews.pipelines.MyNewsPipeline': 100
+    'MyNews.pipelines.ImagesPipeline': 100,
+    'MyNews.pipelines.MyNewsPipeline': 200,
+}
+
+SPIDER_MIDDLEWARES = {
+    'MyNews.middlewares.RandomUserAgent': 100,
+
+}
+
+# 使用bloom filter 过滤 URL
+#DUPEFILTER_CLASS = 'MyNews.custom_filters.SeenURLFilter'
+
+# 下载图片
+# 90天的图片失效期限
+IMAGES_EXPIRES = 90
+IMAGES_STORE = 'img'
+IMAGES_THUMBS = {
+    'symmetry': (500, 500),
+    'not_symmetry': (570, 500),
 }
 
 DEPTH_LIMIT = 0
