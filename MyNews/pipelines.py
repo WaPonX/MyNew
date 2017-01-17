@@ -22,9 +22,16 @@ class ImagesPipeline(ImagesPipeline):
             yield scrapy.Request(item['cover'])
 
     def item_completed(self, result, item, info):
-        imagesPaths = [x['path'] for ok, x in result if ok]
-        if imagesPaths is not None and len(imagesPaths) != 0:
-            item["cover"] = imagesPaths[0]
+        imagePath = None
+        imageMD5 = None
+        for ok, x in result:
+            if ok:
+                imagePath = x['path']
+                imageMD5 = x['checksum']
+        if imagePath is not None and len(imagePath) != 0:
+            item["cover"] = imagePath
+        if imageMD5 is not None and len(imageMD5) != 0:
+            item['image_md5'] = imageMD5
 
 
 class MyNewsPipeline(object):

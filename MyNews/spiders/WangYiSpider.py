@@ -4,8 +4,10 @@ import sys
 sys.path.append('..')
 sys.path.append('../..')
 from MyNews.items import MyNewsItem
+from BaseSpider import BaseSpider
 
-class WangYiSpider(scrapy.Spider):
+
+class WangYiSpider(BaseSpider):
     name = 'WangYiSpider'
     # allowed_domains = ['163.com']
     # start_urls = [
@@ -80,3 +82,6 @@ class WangYiSpider(scrapy.Spider):
             item["cover"] = u""
         else:
             item["cover"] = tmp
+
+    def parse_image_md5(self, response, item):
+        item['image_md5'] = u''

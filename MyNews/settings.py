@@ -123,6 +123,7 @@ DOWNLOAD_DELAY=3
 ITEM_PIPELINES = {
     'MyNews.pipelines.ImagesPipeline': 100,
     'MyNews.pipelines.MyNewsPipeline': 200,
+    #'scrapy_redis.pipelines.RedisPipeline': 300,
 }
 
 SPIDER_MIDDLEWARES = {
@@ -136,10 +137,13 @@ SPIDER_MIDDLEWARES = {
 # 下载图片
 # 90天的图片失效期限
 IMAGES_EXPIRES = 90
-IMAGES_STORE = 'img'
+IMAGES_STORE = '/home/ubuntu/Image/MyNews/img'
 IMAGES_THUMBS = {
     'symmetry': (500, 500),
     'not_symmetry': (570, 500),
 }
 
-DEPTH_LIMIT = 0
+DEPTH_LIMIT = 1
+
+SCHEDULER = "scrapy_redis.scheduler.Scheduler"
+DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"

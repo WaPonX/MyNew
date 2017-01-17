@@ -19,6 +19,7 @@ class MyNewsItem(scrapy.Item):
     tag = scrapy.Field()
     context = scrapy.Field()
     cover = scrapy.Field()
+    image_md5 = scrapy.Field()
 
     @staticmethod
     def TestItem(item):
@@ -27,6 +28,10 @@ class MyNewsItem(scrapy.Item):
 
         if ("" == item["title"] or "" == item["tag"] or "" == item["context"]):
             return False
+
+        if not (len(item['cover'] > 0) and len(item['image_md5']) > 0):
+            return False
+
         try:
             d = datetime.strptime(item["time"], "%Y-%m-%d")
         except:
