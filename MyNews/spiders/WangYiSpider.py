@@ -22,6 +22,7 @@ class WangYiSpider(BaseSpider):
         urls = response.xpath("//*/@href").extract()
         for url in urls:
             url = response.urljoin(url)
+            url = self.get_uniq_url(url)
             yield scrapy.Request(url, callback=self.parse_item)
 
     def parse_item(self, response):

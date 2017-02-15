@@ -121,9 +121,11 @@ COOKIES_ENABLED=False
 DOWNLOAD_DELAY=3
 
 ITEM_PIPELINES = {
-    'MyNews.pipelines.ImagesPipeline': 100,
-    'MyNews.pipelines.MyNewsPipeline': 200,
-    #'scrapy_redis.pipelines.RedisPipeline': 300,
+    'MyNews.pipelines.RedisPipeline': 100,
+    'MyNews.pipelines.ImagesPipeline': 200,
+    'MyNews.pipelines.MyNewsPipeline': 300,
+    # 'MyNews.pipelines.FilterPipeline': 400,
+    # 'scrapy_redis.pipelines.RedisPipeline': 300,
 }
 
 SPIDER_MIDDLEWARES = {
@@ -132,7 +134,7 @@ SPIDER_MIDDLEWARES = {
 }
 
 # 使用bloom filter 过滤 URL
-#DUPEFILTER_CLASS = 'MyNews.custom_filters.SeenURLFilter'
+# DUPEFILTER_CLASS = 'MyNews.custom_filters.SeenURLFilter'
 
 # 下载图片
 # 90天的图片失效期限
@@ -145,5 +147,6 @@ IMAGES_THUMBS = {
 
 DEPTH_LIMIT = 1
 
-SCHEDULER = "scrapy_redis.scheduler.Scheduler"
-DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
+# SCHEDULER = "scrapy_redis.scheduler.Scheduler"
+# DUPEFILTER_CLASS = "scrapy_redis.dupefilter.RFPDupeFilter"
+# DUPEFILTER_CLASS = "MyNews.custom_filters.RedisURLFilter"
