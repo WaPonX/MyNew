@@ -123,7 +123,8 @@ DOWNLOAD_DELAY=3
 ITEM_PIPELINES = {
     'MyNews.pipelines.RedisPipeline': 100,
     'MyNews.pipelines.ImagesPipeline': 200,
-    'MyNews.pipelines.MyNewsPipeline': 300,
+    'MyNews.pipelines.RMMPipeline': 300,
+    'MyNews.pipelines.MyNewsPipeline': 400,
     # 'MyNews.pipelines.FilterPipeline': 400,
     # 'scrapy_redis.pipelines.RedisPipeline': 300,
 }
@@ -140,6 +141,7 @@ SPIDER_MIDDLEWARES = {
 # 90天的图片失效期限
 IMAGES_EXPIRES = 90
 IMAGES_STORE = '/home/ubuntu/Image/MyNews/img'
+#IMAGES_STORE = 'img'
 IMAGES_THUMBS = {
     'symmetry': (500, 500),
     'not_symmetry': (570, 500),

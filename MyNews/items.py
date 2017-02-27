@@ -5,9 +5,10 @@
 # See documentation in:
 # http://doc.scrapy.org/en/latest/topics/items.html
 
-from datetime import datetime
-
+import logging
 import scrapy
+
+logger = logging.getLogger(__name__)
 
 
 class MyNewsItem(scrapy.Item):
@@ -20,21 +21,14 @@ class MyNewsItem(scrapy.Item):
     context = scrapy.Field()
     cover = scrapy.Field()
     image_md5 = scrapy.Field()
+    keywords = scrapy.Field()
 
-    @staticmethod
-    def TestItem(item):
-        if item is None:
-            return False
+    # @staticmethod
+    # def TestItem(item):
+    #     logger.debug("testitem %s " % item)
+    #     if item is None:
+    #         logger.debug("testitem %s " % item)
+    #         return False
 
-        if ("" == item["title"] or "" == item["tag"] or "" == item["context"]):
-            return False
 
-        if not (len(item['cover'] > 0) and len(item['image_md5']) > 0):
-            return False
-
-        try:
-            d = datetime.strptime(item["time"], "%Y-%m-%d")
-        except:
-            return False
-
-        return True
+    #     return True

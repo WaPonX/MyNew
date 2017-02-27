@@ -1,3 +1,4 @@
+# coding: UTF-8
 import scrapy
 
 import sys
@@ -8,16 +9,16 @@ from MyNews.items import MyNewsItem
 from BaseSpider import BaseSpider
 
 
-class WangYiSpider(BaseSpider):
-    name = 'WangYiSpider'
+class XinHuaSpider(BaseSpider):
+    name = 'XinHuaSpider'
     # allowed_domains = ['163.com']
     # start_urls = [
     #     'http://news.163.com/',
     # ]
-    allowed_domains = ['163.com']
+    allowed_domains = ['xinhuanet.com', 'news.cn']
     start_urls = [
         # 'http://war.163.com/16/1203/09/C7BNRS0E000181KT.html',
-        'http://news.163.com/17/0223/10/CDV220PK000189FH.html',
+        'http://www.xinhuanet.com/'
     ]
 
     def parse(self, response):
@@ -40,7 +41,7 @@ class WangYiSpider(BaseSpider):
         yield item
 
     def parse_title(self, response, item):
-        tmp = response.xpath('//*[@id="h1title"]/text()').extract()
+        tmp = response.xpath('//*[@id="title"]/text()').extract()
         if tmp is None or len(tmp) == 0:
             item["title"] = u""
         else:
@@ -48,16 +49,35 @@ class WangYiSpider(BaseSpider):
             item["title"] = tmp[0]
 
     def parse_tag(self, response, item):
-        tmp = response.xpath('//*[@class="ep-crumb JS_NTES_LOG_FE"]/a[2]/text()').extract()
+        tmp = response.xpath('//*[@class="curDiv clearfix"]/span/text()').extract_first()
 
         if tmp is None or len(tmp) == 0:
             item["tag"] = u""
         else:
-            item["tag"] = tmp[0]
+            item["tag"] = tmp
+
+        if u"" == item["tag"]:
+            tmp = response.xpath('//*[@class="s_pd"]/text()').extract()
+        if tmp is None or len(tmp) == 0:
+            item["tag"] = u""
+        else:
+            item["tag"] = tmp[1:]
+
+        if u"" == item["tag"]:
+            tmp = response.xpath('//*[@class="curDiv clearfix"]/span/text()').extract()
+        if tmp is None or len(tmp) == 0:
+            item["tag"] = u""
+        else:
+            item["tag"] = tmp
+
+        if u"" == item["tag"]:
+            item["tag"] = u"其他"
+        # temporary
+        item["tag"] = u"其他"
 
     def parse_time(self, response, item):
         tmp = \
-            response.xpath('//div[@class="post_time_source"]/text()').extract()
+            response.xpath('//*[@class="time"]/text()').extract()
 
         if tmp is None or len(tmp) == 0:
             item["time"] = u""
@@ -66,13 +86,16 @@ class WangYiSpider(BaseSpider):
             self.log('time is:\n%s' % item['time'])
             if len(item["time"]) >= 10:
                 item["time"] = item["time"][:10]
-                #item["time"].replace(u"-", u"/")
+                item["time"] = item["time"][:4] + u"-" +\
+                    item["time"][5:7] + u"-" + \
+                    item["time"][8:10]
             else:
                 item["time"] = u""
+            self.log('time is:\n%s' % item['time'])
 
-        if u"" == item["time"]:
+        if "" == item["time"]:
             tmp = \
-                response.xpath('//*[@class="ep-time-soure cDGray"]/text()').extract()
+                response.xpath('//*[@id="pubtime"]/text()').extract()
         if tmp is None or len(tmp) == 0:
             item["time"] = u""
         else:
@@ -80,12 +103,15 @@ class WangYiSpider(BaseSpider):
             self.log('time is:\n%s' % item['time'])
             if len(item["time"]) >= 10:
                 item["time"] = item["time"][:10]
-                #item["time"].replace(u"-", u"/")
+                item["time"] = item["time"][:4] + u"-" +\
+                    item["time"][5:7] + u"-" + \
+                    item["time"][8:10]
             else:
                 item["time"] = u""
+            self.log('time is:\n%s' % item['time'])
 
     def parse_context(self, response, item):
-        tmp = response.xpath('//*[@id="endText"]/p/text()').extract()
+        tmp = response.xpath('//*[@id="article"]/p/text()').extract()
 
         if tmp is None or len(tmp) == 0:
             item["context"] = u""
@@ -93,8 +119,9 @@ class WangYiSpider(BaseSpider):
             for p in tmp:
                 item["context"] = p + u"\r\n"
 
-        if u"" == item["context"]:
-            tmp = response.xpath('//*[@id="endText"]/p/text()')
+        if "" == item["context"]:
+            tmp = response.xpath('//*[@id="content"]/p/text()').extract()
+
         if tmp is None or len(tmp) == 0:
             item["context"] = u""
         else:
@@ -102,12 +129,20 @@ class WangYiSpider(BaseSpider):
                 item["context"] = p + u"\r\n"
 
     def parse_cover(self, response, item):
-        tmp = response.xpath('//*[@id="endText"]/p/img/@src').extract_first()
+        tmp = response.xpath('//*[@id="article"]/p/img/@src').extract_first()
 
         if tmp is None or len(tmp) == 0:
             item["cover"] = u""
         else:
             item["cover"] = tmp
+
+        if "" == item["cover"]:
+            tmp = response.xpath('//*[@id="content"]/p/img/@src').extract_first()
+        if tmp is None or len(tmp) == 0:
+            item["cover"] = u""
+        else:
+            item["cover"] = tmp
+
         if "" != item["cover"]:
             item["cover"] = response.urljoin(item["cover"])
 

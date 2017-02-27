@@ -5,14 +5,16 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 
-import MySQLdb
+from datetime import datetime
+import math
+import re
 import redis
 import scrapy
 from scrapy.exceptions import DropItem
 from scrapy.pipelines.images import ImagesPipeline
 import logging
 
-from MyNews.items import MyNewsItem
+import MySQLdb
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +27,17 @@ class ImagesPipeline(ImagesPipeline):
         if item['cover'] is not None and item['cover'] != "":
             yield scrapy.Request(item['cover'])
 
-    def item_completed(self, result, item, info):
-        imagePath = None
-        imageMD5 = None
-        for ok, x in result:
-            if ok:
-                imagePath = x['path']
-                imageMD5 = x['checksum']
-        if imagePath is not None and len(imagePath) != 0:
-            item["cover"] = imagePath
-        if imageMD5 is not None and len(imageMD5) != 0:
-            item['image_md5'] = imageMD5
+    def item_completed(self, results, item, info):
+        logger.debug("results is %s" % results)
+        image_paths = [x["path"] for ok, x in results if ok]
+        if len(image_paths) > 0:
+            item["cover"] = image_paths[0]
+        return item
+        # for ok, x in result:
+        #    if ok:
+        #        item["cover"] = x['path']
+        #        item['image_md5'] = x['checksum']
+        #    logger.debug("x is %s " % x)
 
 
 class RedisPipeline(object):
@@ -60,10 +62,10 @@ class RedisPipeline(object):
             raise
 
     def append_url(self, url):
-        logger.debug("urls_buf length is %d" % len(self.urls_buf))
+        # logger.debug("urls_buf length is %d" % len(self.urls_buf))
         self.urls_buf.append(url)
         if len(self.urls_buf) > self.max_urls_count:
-            logger.debug("urls_buf is %s" % self.urls_buf)
+            # logger.debug("urls_buf is %s" % self.urls_buf)
             self.send_urls()
             return
 
@@ -76,12 +78,8 @@ class RedisPipeline(object):
             self.urls_buf = []
 
     def process_item(self, item, spider):
-        if (MyNewsItem.TestItem(item) is False):
-            logger.debug("item is %s" % item)
-            if item is not None and item["url"] is not None:
-                self.append_url(item["url"])
-            raise DropItem("item is invaild.\n%s" % item)
-
+        # append url to redis ignore the item used or not
+        self.append_url(item["url"])
         return item
 
     def close_spider(self, spider):
@@ -89,11 +87,200 @@ class RedisPipeline(object):
         self.send_urls()
 
 
+class RMMPipeline(object):
+    """
+    use RMM algorithm cut the title.
+    """
+    words_file = "/home/ubuntu/Downloads/MyNews/tagged.txt"
+    stop_words_file = "/home/ubuntu/Downloads/MyNews/stop_words.txt"
+    words_with_freq_file = "/home/ubuntu/Downloads/MyNews/webdict_with_freq.txt"
+    words_set = set()
+    stop_words_set = set()
+    words_freq_dict = {}
+    count_freq = 0
+    max_keywords_count = 10
+
+    def __load_data(self):
+        # load sign in words
+        # logger.debug("start loading data")
+        f = open(self.words_file)
+        line = f.readline()
+        while line:
+            self.words_set.add(line)
+            line = f.readline()
+        f.close()
+
+        # logger.debug("start loading stop words")
+        # load stop words
+        f = open(self.stop_words_file)
+        line = f.readline()
+        while line:
+            self.stop_words_set.add(line)
+            line = f.readline()
+        f.close()
+
+        # logger.debug("start loading words frequence")
+        # load words with frequence
+        f = open(self.stop_words_file)
+        line = f.readline()
+        while line:
+            self.stop_words_set.add(line)
+            fields = line.split(' ')
+            if len(fields) == 2:
+                self.words_freq_dict[fields[0]] = long(fields[1])
+                self.count_freq = self.count_freq + long(fields[1])
+            line = f.readline()
+        f.close()
+
+        # logger.debug("start count IDF")
+        # IDF
+        for k, v in self.words_freq_dict:
+            self.words_freq_dict[k] = math.log(self.count_freq / (v + 1))
+        # logger.debug("end count IDF")
+
+    def open_spider(self, spider):
+        self.__load_data()
+        # logger.debug('words_set len is %d' % len(self.words_set))
+
+    def check_item(self, item):
+        logger.debug("checkitem %s" % item)
+        if "" == item["title"] or "" == item["tag"] or "" == item["context"]:
+            logger.debug("invailitem %s " % item)
+            return False
+
+        # if len(item['cover']) == 0 or len(item['image_md5']) == 0:
+        #    return False
+
+        try:
+            d = datetime.strptime(item["time"], "%Y-%m-%d")
+        except:
+            logger.debug("time's format is error.")
+            return False
+
+        return True
+
+    def process_item(self, item, spider):
+        # judge the item is vaild or not
+        if self.check_item(item) == False:
+            # logger.debug("item is %s" % item)
+            raise DropItem("item is invaild.\n%s" % item)
+        logger.debug("waponxie items is vaild")
+
+        title_keywords = self.__cut_sentence(item['title'])
+
+        # split context
+        split_re = u'[。，？！、；：“”（）【】———……《》*~,\.\?/:;""\'\'\[\]\{\}\s]'
+        sentences = re.split(split_re, item['context'].replace(u"\r\n", " "))
+
+        logger.debug(sentences)
+        context_keywords = {}
+        for sentence in sentences:
+            logger.debug(sentence)
+            if len(sentence) == 0:
+                continue
+            for (k, v) in self.__cut_sentence(sentence):
+                if k in context_keywords:
+                    context_keywords[k] = context_keywords[k] + v
+                else:
+                    context_keywords[k] = v
+
+        # TF-IDF algorithm
+        keywords = context_keywords
+        for (k, v) in title_keywords:
+            if k in keywords:
+                keywords[k] = keywords[k] + v
+            else:
+                keywords[k] = v
+        words_tf_idf = {}
+
+        # count TF-IDF
+        for (k, v) in keywords:
+            if k in self.words_freq_dict:
+                words_tf_idf[k] = v * self.words_freq_dict[k]
+            else:
+                words_tf_idf[k] = v * 1
+
+        logger.debug("words-tf-idf is \n %s" % words_tf_idf)
+        item['keywords'] = self.__get_keywords(words_tf_idf)
+        logger.debug("keywords is %s" % item['keywords'])
+        self.__check_keywords(keywords)
+
+        return item
+
+    def __get_keywords(self, words_tf_idf):
+        words_tf_idf = sorted(words_tf_idf.items(),
+                              lambda x, y: cmp(x[1], y[1]),
+                              reverse = True)
+        result = []
+        index = 0
+        for k in words_tf_idf:
+            if index > self.max_keywords_count:
+                break
+            else:
+                result.append(k)
+                index = index + 1
+        return result
+
+    def __check_keywords(self, keywords):
+        pass
+
+    # clear stop words from words
+    def __clear_stop_words(self, words):
+        for k in words:
+            if k in self.stop_words_file:
+                del words['k']
+
+    def __cut_sentence(self, sentence, max_len=6):
+        if not isinstance(sentence, basestring):
+            logger.debug("sentence is not a string")
+            return []
+        # sentence = sentence.decode("utf-8")
+        # logger.debug("sentence is %s " % sentence)
+        sen_len = len(sentence)
+        cur = sen_len
+        word_list = {}
+        while cur > 0:
+            end = cur
+            index = None
+            for index in range(max_len, 0, -1):
+                word = sentence[(cur - index): cur]
+                logger.debug("word is %s " % word)
+                # if word in words_set
+                # then push the word in word_list
+                if word in self.words_set:
+                    if word not in word_list:
+                        word_list[word] = 0
+                    word_list[word] = word_list[word] + 1
+                    end = cur - index
+                    break
+
+            # new words
+            # if not match in words_set
+            # choose the last one word as keyword
+            # and push then word in the words_set
+            if end == cur:
+                end = cur - 1
+                word = sentence[end: cur]
+                if word not in word_list:
+                    word_list[word] = 0
+                word_list[word] = word_list[word] + 1
+                self.words_set.add(word)
+            cur = end
+
+        # clear stop words from word_list
+        self.__clear_stop_words(word_list)
+        logger.debug("word_list is %s " % word_list)
+        return word_list
+
+    def close_spider(self, spider):
+        self.words_set.clear()
+
+
 class MyNewsPipeline(object):
     db_ip = "localhost"
     db_username = "root"
     db_password = "tencent.com"
-    db_name = "MyNewsDB"
+    db_name = "mynews"
 
     def __init__(self):
         pass
@@ -120,12 +307,12 @@ class MyNewsPipeline(object):
         return item
 
     def insert_into_mysql(self, item):
-        sql = "INSERT INTO MyNews(url, title, tag, time, context, cover) \
+        sql = "INSERT INTO MyNews(url, title, tag, time, context, cover, img_md5) \
             Values('%s', '%s', '%s', '%s', '%s', '%s')" % (
             item["url"], item["title"], item["tag"], item["time"],
-            item["context"], item["cover"])
+            item["context"], item["cover"], item["image_md5"])
 
-        logger.debug("sql is :\n%s" % sql)
+        logger.debug("waponxie sql is :\n%s" % sql)
         try:
             self.cursor.execute(sql)
             self.db.commit()
