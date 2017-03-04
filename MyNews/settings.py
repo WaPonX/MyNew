@@ -124,6 +124,7 @@ ITEM_PIPELINES = {
     'MyNews.pipelines.RedisPipeline': 100,
     'MyNews.pipelines.ImagesPipeline': 200,
     'MyNews.pipelines.RMMPipeline': 300,
+    'MyNews.pipelines.SimhashPipeline': 300,
     'MyNews.pipelines.MyNewsPipeline': 400,
     # 'MyNews.pipelines.FilterPipeline': 400,
     # 'scrapy_redis.pipelines.RedisPipeline': 300,

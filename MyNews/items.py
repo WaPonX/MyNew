@@ -19,9 +19,12 @@ class MyNewsItem(scrapy.Item):
     time = scrapy.Field()
     tag = scrapy.Field()
     context = scrapy.Field()
+    summary = scrapy.Field()
     cover = scrapy.Field()
     image_md5 = scrapy.Field()
     keywords = scrapy.Field()
+    tf_idf = scrapy.Field()
+    strsimhash = scrapy.Field()
 
     # @staticmethod
     # def TestItem(item):
@@ -29,6 +32,5 @@ class MyNewsItem(scrapy.Item):
     #     if item is None:
     #         logger.debug("testitem %s " % item)
     #         return False
-
 
     #     return True

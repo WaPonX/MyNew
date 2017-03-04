@@ -5,7 +5,6 @@
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
 # See: http://doc.scrapy.org/en/latest/topics/item-pipeline.html
 
-from ctypes import c_ubyte
 from datetime import datetime
 import math
 import re
@@ -107,7 +106,7 @@ class RMMPipeline(object):
         f = open(self.words_file)
         line = f.readline()
         while line:
-            self.words_set.add(line[:-1].decode('utf8'))
+            self.words_set.add(line)
             line = f.readline()
         f.close()
 
@@ -116,30 +115,43 @@ class RMMPipeline(object):
         f = open(self.stop_words_file)
         line = f.readline()
         while line:
-            self.stop_words_set.add(line[:-1].decode('utf8'))
+            self.stop_words_set.add(line)
             line = f.readline()
         f.close()
 
+    def __count_IDF(self):
         # logger.debug("start loading words frequence")
         # load words with frequence
-        f = open(self.words_with_freq_file)
-        # f = open(self.stop_words_file)
-        line = f.readline()
+        # f = open(self.words_with_freq_file)
+        f = open(self.stop_words_file)
+        logger.debug("start_loop")
+        logger.debug("file is %s" % f)
+        try:
+            line = f.readline()
+        except e:
+            logger.debug(e.msg)
+            raise
+        logger.debug("line is %" % line)
         while line:
+            logger.debug("line is %" % line)
+            # self.stop_words_set.add(line)
             fields = line.split(' ')
+            logger.debug("fields is %s" % fileds)
             if len(fields) == 2:
-                self.words_freq_dict[fields[0].decode('utf8')] = long(fields[1])
+                self.words_freq_dict[fields[0]] = long(fields[1])
                 self.count_freq = self.count_freq + long(fields[1])
             line = f.readline()
         f.close()
-        # logger.debug("start count IDF")
+
+        logger.debug("start count IDF")
         # IDF
-        for (k, v) in self.words_freq_dict.items():
+        for k, v in self.words_freq_dict:
             self.words_freq_dict[k] = math.log(self.count_freq / (v + 1))
-        # logger.debug("end count IDF")
+        logger.debug("end count IDF")
 
     def open_spider(self, spider):
         self.__load_data()
+        self.__count_IDF()
         # logger.debug('words_set len is %d' % len(self.words_set))
 
     def check_item(self, item):
@@ -169,8 +181,7 @@ class RMMPipeline(object):
         title_keywords = self.__cut_sentence(item['title'])
 
         # split context
-        # split_re = u'[。，？！、；：“”（）【】—……《》*~,\.\?/:;""\'\'\r\n\[\]\{\}\s]'
-        split_re = u'[。，？！、；：“”（）【】———……《》*~,\.\?/:;""\'\'\[\]\{\}\s]'
+        split_re = u'[。，？！、；：“”（）【】—……《》*~,\.\?/:;""\'\'\r\n\[\]\{\}\s]'
         sentences = re.split(split_re, item['context'].replace(u"\r\n", " "))
 
         logger.debug(sentences)
@@ -179,15 +190,16 @@ class RMMPipeline(object):
             logger.debug(sentence)
             if len(sentence) == 0:
                 continue
-            for (k, v) in self.__cut_sentence(sentence).items():
-                if k in context_keywords.keys():
+            keywords = self.__cut_sentence(sentence)
+            for (k, v) in keywords:
+                if k in context_keywords:
                     context_keywords[k] = context_keywords[k] + v
                 else:
                     context_keywords[k] = v
 
         # TF-IDF algorithm
         keywords = context_keywords
-        for (k, v) in title_keywords.items():
+        for (k, v) in title_keywords:
             if k in keywords:
                 keywords[k] = keywords[k] + v
             else:
@@ -195,33 +207,31 @@ class RMMPipeline(object):
         words_tf_idf = {}
 
         # count TF-IDF
-        for (k, v) in keywords.items():
+        for (k, v) in keywords:
             if k in self.words_freq_dict:
                 words_tf_idf[k] = v * self.words_freq_dict[k]
             else:
                 words_tf_idf[k] = v * 1
 
+        logger.debug("words-tf-idf is \n %s" % words_tf_idf)
         item['keywords'] = self.__get_keywords(words_tf_idf)
-        item['tf_idf'] = {}
-        for key in item['keywords']:
-            item['tf_idf'][key] = words_tf_idf[key]
-        # logger.debug("keywords is %s" % item['keywords'])
+        logger.debug("keywords is %s" % item['keywords'])
         self.__check_keywords(keywords)
 
         return item
 
     def __get_keywords(self, words_tf_idf):
-        desc_tf_idf = sorted(words_tf_idf.items(),
+        words_tf_idf = sorted(words_tf_idf.items(),
                               lambda x, y: cmp(x[1], y[1]),
                               reverse = True)
         result = []
-        count = 0
-        for item in desc_tf_idf:
-            if count >= self.max_keywords_count:
+        index = 0
+        for k in words_tf_idf:
+            if index > self.max_keywords_count:
                 break
             else:
-                result.append(item[0])
-                count = count + 1
+                result.append(k)
+                index = index + 1
         return result
 
     def __check_keywords(self, keywords):
@@ -229,21 +239,21 @@ class RMMPipeline(object):
 
     # clear stop words from words
     def __clear_stop_words(self, words):
-        for k in words.keys():
-            if k in self.stop_words_set:
-                del words[k]
+        for k in words:
+            if k in self.stop_words_file:
+                del words['k']
 
     def __cut_sentence(self, sentence, max_len=6):
         if not isinstance(sentence, basestring):
             logger.debug("sentence is not a string")
             return []
-        # sentence = sentence.decode("utf-8")
-        # logger.debug("sentence is %s " % sentence)
         sentence = sentence.replace(r'\r', '')
         sentence = sentence.strip()
+        # sentence = sentence.decode("utf-8")
+        # logger.debug("sentence is %s " % sentence)
         sen_len = len(sentence)
         cur = sen_len
-        word_with_freq = {}
+        word_list = {}
         while cur > 0:
             end = cur
             index = None
@@ -251,11 +261,12 @@ class RMMPipeline(object):
                 word = sentence[(cur - index): cur]
                 logger.debug("word is %s " % word)
                 # if word in words_set
-                # then push the word in word_with_freq
+                # then push the word in word_list
                 if word in self.words_set:
-                    if word not in word_with_freq:
-                        word_with_freq[word] = 0
-                    word_with_freq[word] = word_with_freq[word] + 1
+                    logger.debug("words_set : %s" % word)
+                    if word not in word_list:
+                        word_list[word] = 0
+                    word_list[word] = word_list[word] + 1
                     end = cur - index
                     break
 
@@ -266,81 +277,20 @@ class RMMPipeline(object):
             if end == cur:
                 end = cur - 1
                 word = sentence[end: cur]
-                if word not in word_with_freq:
-                    word_with_freq[word] = 0
-                word_with_freq[word] = word_with_freq[word] + 1
+                if word not in word_list:
+                    word_list[word] = 0
+                word_list[word] = word_list[word] + 1
                 self.words_set.add(word)
             cur = end
 
-        # clear stop words from word_with_freq
-        self.__clear_stop_words(word_with_freq)
-        logger.debug("word_with_freq is %s " % word_with_freq)
-
-        return word_with_freq
+        # clear stop words from word_list
+        self.__clear_stop_words(word_list)
+        # for (k, v) in word_list:
+        #     logger.debug("%s" % k)
+        return word_list
 
     def close_spider(self, spider):
         self.words_set.clear()
-
-class SimhashPipeline(object):
-    seed = 131
-    feature_len = 64
-
-    def process_item(self, item, spider):
-        item['strsimhash'] = self.simhash(item['tf_idf'])
-
-        return item
-
-    def simhash(self, feature_weight):
-        hash_value = self.string_hash(feature_weight)
-
-        simhash_string = ""
-        for index in range(self.feature_len):
-            if ((1 << index) & hash_value) > 0:
-                simhash_string = '1' + simhash_string
-            else:
-                simhash_string = '0' + simhash_string
-        return simhash_string
-
-    def __cal_weigth(self, hash_value, weight=1):
-        # bm = BitMap(self.feature_len)
-
-        result = []
-        for index in range(self.feature_len):
-            if ((1 << index) & hash_value) > 0:
-                result.append(weight)
-            else:
-                result.append(-weight)
-
-        return result
-
-    def hex_string_hash(self, feature_weight):
-        return hex(self.string_hash(feature_weight))
-
-    def string_hash(self, feature_weight):
-        hash_weights = []
-
-        for (string, weight) in feature_weight.items():
-            hash_value = self.BKDRHash(string)
-            hash_weights.append(self.__cal_weigth(hash_value, weight))
-
-        total_weight = [0 for x in range(self.feature_len)]
-        for i in range(len(hash_weights)):
-            for j in range(len(hash_weights[i])):
-                total_weight[j] += hash_weights[i][j]
-
-        result = 0
-        for index in range(len(total_weight)):
-            if total_weight[index] > 0:
-                result = result | (1 << index)
-
-        return result
-
-    def BKDRHash(self, string):
-        hash_value = 0
-        for c in string:
-            hash_value = hash_value * self.seed + ord(c)
-
-        return hash_value
 
 
 class MyNewsPipeline(object):
@@ -370,22 +320,14 @@ class MyNewsPipeline(object):
             raise
 
     def process_item(self, item, spider):
-        if len(item["context"]) > 50:
-            item["summary"] = item["context"][:50]
-        else:
-            item["summary"] = item["context"]
-
         self.insert_into_mysql(item)
         return item
 
     def insert_into_mysql(self, item):
-        sql = "INSERT INTO mynews_raw(url, title, tag, time, context,\
-            summary, keywords, cover, img_md5, strsimhash) \
-            Values('%s', '%s', '%s', '%s', '%s',\
-            '%s', '%s', '%s', '%s', '%s')" % (item["url"], item["title"], \
-            item["tag"], item["time"],item["context"], item["summary"], \
-            self.list2str(item["keywords"]), item["cover"], item["image_md5"], \
-            item['strsimhash'])
+        sql = "INSERT INTO MyNews(url, title, tag, time, context, cover, img_md5) \
+            Values('%s', '%s', '%s', '%s', '%s', '%s')" % (
+            item["url"], item["title"], item["tag"], item["time"],
+            item["context"], item["cover"], item["image_md5"])
 
         logger.debug("waponxie sql is :\n%s" % sql)
         try:
@@ -394,18 +336,6 @@ class MyNewsPipeline(object):
         except:
             self.db.rollback()
             raise
-
-    def list2str(self, l, sep=u';'):
-        if not isinstance(l, list):
-            raise DropItem("please input a list.")
-
-        result = u''
-        for item in l:
-            if len(result) == 0:
-                result = item
-            else:
-                result = result + sep + item
-        return result
 
     def close_spider(self, spider):
         try:
