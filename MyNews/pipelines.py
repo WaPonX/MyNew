@@ -32,7 +32,7 @@ class ImagesPipeline(ImagesPipeline):
         logger.debug("results is %s" % results)
         image_paths = [x["path"] for ok, x in results if ok]
         if len(image_paths) > 0:
-            item["cover"] = image_paths[0]
+            item["cover"] = u'/home/ubuntu/Image/MyNews/img/' + image_paths[0]
         return item
         # for ok, x in result:
         #    if ok:
